@@ -374,6 +374,15 @@ details.conf summary small{font-weight:600;color:var(--cinza);white-space:nowrap
 .reg-caixa .reg-op{display:flex;align-items:center;gap:10px;min-height:44px;font-size:17px;font-weight:600;cursor:pointer}
 .reg-caixa .reg-op input{width:24px;height:24px;flex:0 0 auto;accent-color:var(--laranja)}
 
+.cod-caixa{border:2px solid var(--laranja)}
+.cod-grande{font-size:26px;font-weight:800;letter-spacing:1px;margin:6px 0;color:var(--tit);word-break:break-all;font-family:ui-monospace,Consolas,monospace;user-select:all}
+.cod-lista{margin:0;padding-left:22px}
+.cod-lista li{margin:6px 0;font-family:ui-monospace,Consolas,monospace;word-break:break-all}
+.cod-lista .sub{font-family:inherit}
+.cod-tab{width:100%;border-collapse:collapse;margin:8px 0}
+.cod-tab th,.cod-tab td{border:1px solid var(--linha);padding:6px;text-align:left}
+#codconf{width:100%;font-size:16px;box-sizing:border-box}
+
 </style>
 </head>
 <body>
@@ -3378,6 +3387,163 @@ app.addEventListener('change', ev => {
 setTimeout(() => { regVisita(); regAluno(false); }, 1500);
 window.addEventListener('online', () => { regVisita(); regAluno(false); });
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') regAluno(false); });
+
+// ---------- mod_60_codigos: um código por atividade terminada (v08, 18/11/2026) ----------
+// Cada rodada terminada de exercícios de aula, simulado ou aquecimento gera um código para o aluno entregar.
+// Formato: TIPO-ACERTOS-TOTAL-DDMM-CONF   ex.: A05-8-10-1811-K7QZ
+//   TIPO: A01..A13 (exercícios da aula), SIM (simulado), AQ (aquecimento do dia)
+//   CONF: 4 letras calculadas com o nome (1ª palavra) e o nº da chamada; o código de um colega não confere com outro nome.
+// Não é segurança de verdade: serve para o professor recolher e conferir rápido.
+const COD_ALF = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
+const COD_MAX = 400;
+
+function codNome(s){
+  return String(s || '').trim().split(/\s+/)[0].toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z]/g, '');
+}
+function codNum(s){ const n = parseInt(String(s || '').replace(/\D/g, ''), 10); return isNaN(n) ? '' : String(n); }
+function codConf(nome, num, corpo){
+  const s = codNome(nome) + '|' + codNum(num) + '|' + corpo + '|rev7-cod-2026';
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  h >>>= 0;
+  let out = '';
+  for (let i = 0; i < 4; i++) { out += COD_ALF[h % 31]; h = Math.floor(h / 31); }
+  return out;
+}
+function codTipo(chave){
+  const m = /^p(\d+)$/.exec(chave);
+  if (m) return 'A' + ('0' + m[1]).slice(-2);
+  if (chave === 'sim') return 'SIM';
+  if (/^aq/.test(chave)) return 'AQ';
+  return '';
+}
+function codNomeTipo(t){ return t === 'SIM' ? 'Simulado' : t === 'AQ' ? 'Aquecimento' : 'Exercícios da aula ' + (+t.slice(1)); }
+function codCorpo(r){ return r.t + '-' + r.a + '-' + r.n + '-' + r.d; }
+function codFixa(r){ if (!r.nm && codPronto()) { r.nm = mem.nome; r.nu = mem.num; salvar(); } }  // o código fica preso ao nome que valia quando foi gerado
+function codDe(r){ codFixa(r); return codCorpo(r) + '-' + codConf(r.nm || mem.nome, r.nu || mem.num, codCorpo(r)); }
+function codPronto(){ return !!(codNome(mem.nome) && codNum(mem.num)); }
+
+// ---- registra a rodada quando ela termina (gravaMelhor roda na última resposta) ----
+const codGravaOrig = gravaMelhor;
+gravaMelhor = function(){
+  codGravaOrig();
+  if (!Q || Q.codFeito) return;
+  const t = codTipo(Q.chave);
+  if (!t) return;
+  Q.codFeito = true;
+  const dt = new Date(), r = { t: t, a: Q.acertos, n: Q.lista.length, d: ('0' + dt.getDate()).slice(-2) + ('0' + (dt.getMonth() + 1)).slice(-2), h: Date.now() };
+  if (!mem.codigos) mem.codigos = [];
+  mem.codigos.push(r);
+  if (mem.codigos.length > COD_MAX) mem.codigos = mem.codigos.slice(-COD_MAX);
+  salvar();
+  Q.codReg = r;
+  codEnvia(r);
+};
+function codEnvia(r){
+  if (typeof regEnvia !== 'function' || !mem.regAuto || !codPronto()) return;
+  if (regEnvia({ t: 'codigo', data: typeof regData === 'function' ? regData() : '', nome: mem.nome, num: mem.num || '', turma: mem.turma || '',
+    codigo: codDe(r), atividade: codNomeTipo(r.t), acertos: r.a, total: r.n, ver: 'v08' })) { r.env = 1; salvar(); }
+}
+
+// ---- caixa do código na tela de resultado ----
+function codCaixa(r){
+  if (!codPronto()) {
+    return '<div class="caixa cod-caixa" id="codcx"><h3>🎟️ Seu código desta atividade</h3><p class="sub">Para ganhar o código, escreva o seu primeiro nome e o número da chamada. Escreva igual toda vez.</p>' +
+      '<label class="campo">Primeiro nome<input id="codnome" autocomplete="given-name" maxlength="40" value="' + esc0(mem.nome || '') + '"></label>' +
+      '<label class="campo">Número da chamada<input id="codnum" inputmode="numeric" maxlength="3" value="' + esc0(mem.num || '') + '"></label>' +
+      '<div class="linha"><button class="forte" data-acao="codgera">Gerar meu código</button></div><p class="sub" id="codst" role="status" aria-live="polite"></p></div>';
+  }
+  const c = codDe(r);
+  return '<div class="caixa cod-caixa" id="codcx"><h3>🎟️ Seu código desta atividade</h3><p class="cod-grande" id="codtxt">' + esc0(c) + '</p>' +
+    '<p class="sub">' + esc0(codNomeTipo(r.t)) + ': ' + r.a + ' de ' + r.n + ' · ' + esc0(r.nm || mem.nome) + ', nº ' + esc0(codNum(r.nu || mem.num)) + '. Mande ao professor ou anote no caderno. Cada atividade feita é um código a mais.</p>' +
+    '<div class="linha"><button class="forte" data-acao="codcopia" data-c="' + esc0(c) + '">Copiar o código</button>' + botaoIr('Meus códigos', 'codigos', null, null, 'leve') + '</div>' +
+    '<p class="sub" id="codst" role="status" aria-live="polite">' + (r.env ? '✔ Também foi para o professor automaticamente.' : '') + '</p></div>';
+}
+const codProximaOrig = proxima;
+proxima = function(){
+  const ultima = Q && Q.k >= Q.lista.length - 1, r = Q && Q.codReg;
+  codProximaOrig();
+  if (!ultima || !r) return;
+  const alvo = app.querySelector('.caixa');
+  if (alvo) alvo.insertAdjacentHTML('afterend', codCaixa(r));
+};
+
+// ---- tela "Meus códigos" (aluno) + conferência (professor) ----
+function telaCodigos(){
+  const L = (mem.codigos || []).slice().reverse();
+  let h = topo() + '<h2>Meus códigos</h2>';
+  if (!codPronto()) h += '<div class="caixa"><p>Escreva o seu primeiro nome e o número da chamada em <b>Enviar ao professor</b> para ver os seus códigos.</p>' + botaoIr('Ir para Enviar ao professor', 'enviar', null, null, 'forte') + '</div>';
+  else if (!L.length) h += '<div class="caixa"><p>Você ainda não terminou nenhuma atividade. Termine os exercícios de uma aula, o aquecimento do dia ou o simulado para ganhar o primeiro código.</p></div>';
+  else {
+    const txt = L.map(codDe).join('\n');
+    h += '<p class="sub">' + L.length + (L.length === 1 ? ' código' : ' códigos') + ' · ' + esc0(mem.nome) + ', nº ' + esc0(codNum(mem.num)) + '. Mande todos de uma vez ou um por um.</p>' +
+      '<div class="linha"><button class="forte" data-acao="codcopia" data-c="' + esc0(mem.nome + ' nº ' + codNum(mem.num) + '\n' + txt) + '">Copiar todos</button>' +
+      (navigator.share ? '<button data-acao="codshare">Enviar (WhatsApp, e-mail...)</button>' : '') + '</div><p class="sub" id="codst" role="status" aria-live="polite"></p>' +
+      '<div class="caixa"><ol class="cod-lista">' + L.map(r => '<li><b>' + esc0(codDe(r)) + '</b><br><span class="sub">' + esc0(codNomeTipo(r.t)) + ': ' + r.a + ' de ' + r.n + ' · ' + r.d.slice(0, 2) + '/' + r.d.slice(2) + '</span></li>').join('') + '</ol></div>';
+  }
+  h += '<details class="ajuda"><summary>Para o professor: conferir códigos</summary><p class="sub">Cole uma linha por código: nome, número e código. Ex.: <code>Maria 12 A05-8-10-1811-K7QZ</code>. ' +
+    'Também serve colar o texto do "Copiar todos" do aluno (nome e número na 1ª linha, códigos embaixo).</p>' +
+    '<textarea id="codconf" rows="8" aria-label="Códigos recebidos"></textarea><div class="linha"><button data-acao="codconfere">Conferir</button></div><div id="codres" role="status" aria-live="polite"></div></details>' + rodapeVoltar();
+  mostrar(h);
+}
+TELAS.codigos = telaCodigos;
+
+function codConfere(bruto){
+  const linhas = bruto.replace(/\r/g, '').split('\n').map(s => s.trim()).filter(Boolean), re = /([A-Z0-9]{2,3})-(\d{1,2})-(\d{1,2})-(\d{4})-([2-9A-Z]{4})\s*$/i;
+  let nome = '', num = '', ok = 0, ruim = 0, rep = 0;
+  const vistos = {}, porAluno = {}, res = [];
+  linhas.forEach(l => {
+    const m = re.exec(l.toUpperCase());
+    const antes = m ? l.slice(0, l.toUpperCase().lastIndexOf(m[0])).replace(/(^|\s)n[º°o]\.?(?=\s*\d)/ig, ' ').trim() : l.replace(/(^|\s)n[º°o]\.?(?=\s*\d)/ig, ' ').trim();
+    const pm = /^(.*?)[\s,;:-]+(\d{1,3})\s*$/.exec(antes);
+    if (pm && pm[1]) { nome = pm[1]; num = pm[2]; }
+    if (!m) return;
+    const corpo = m[1] + '-' + (+m[2]) + '-' + (+m[3]) + '-' + m[4], cod = corpo + '-' + m[5], quem = codNome(nome) + ' ' + codNum(num);
+    const bate = !!nome && +m[2] <= +m[3] && codConf(nome, num, corpo) === m[5];
+    const chave = quem + '|' + cod;
+    if (bate && vistos[chave]) { rep++; res.push('↺ ' + cod + ' · ' + nome + ' nº ' + num + ' (repetido)'); return; }
+    vistos[chave] = 1;
+    if (bate) { ok++; porAluno[quem] = porAluno[quem] || { nome: nome, num: codNum(num), n: 0, q: 0 }; porAluno[quem].n++; porAluno[quem].q += +m[3]; }
+    else ruim++;
+    res.push((bate ? '✔ ' : '✘ ') + cod + ' · ' + (nome ? nome + ' nº ' + num : 'sem nome antes do código') + (bate ? '' : ' (não confere)'));
+  });
+  const tab = Object.keys(porAluno).map(k => porAluno[k]).sort((a, b) => (+a.num || 999) - (+b.num || 999));
+  return '<p><b>' + ok + ' válidos</b> · ' + ruim + ' não conferem' + (rep ? ' · ' + rep + ' repetidos' : '') + '</p>' +
+    (tab.length ? '<table class="cod-tab"><thead><tr><th>Nº</th><th>Nome</th><th>Códigos</th><th>Questões</th></tr></thead><tbody>' +
+      tab.map(a => '<tr><td>' + esc0(a.num) + '</td><td>' + esc0(a.nome) + '</td><td>' + a.n + '</td><td>' + a.q + '</td></tr>').join('') + '</tbody></table>' : '') +
+    '<ol class="cod-lista">' + res.map(s => '<li>' + esc0(s) + '</li>').join('') + '</ol>';
+}
+
+// ---- cartão na aba Mais ----
+if (typeof maisTopo === 'function') {
+  const codMaisOrig = maisTopo;
+  maisTopo = function(){
+    const s = codMaisOrig(), n = (mem.codigos || []).length;
+    return s.slice(0, -6) + cartao('codigos', null, '🎟️', 'Meus códigos', n ? n + (n === 1 ? ' código para entregar' : ' códigos para entregar') : 'Termine uma atividade e ganhe um código') + '</div>';
+  };
+}
+
+app.addEventListener('click', ev => {
+  const b = ev.target.closest('[data-acao]');
+  if (!b) return;
+  const a = b.dataset.acao, st = document.getElementById('codst');
+  if (a === 'codcopia') {
+    const t = b.dataset.c;
+    (navigator.clipboard && navigator.clipboard.writeText ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => { if (st) st.textContent = '✔ Copiado. Agora cole na conversa com o professor.'; })
+      .catch(() => { const el = document.getElementById('codtxt'); if (el) { const r = document.createRange(); r.selectNodeContents(el); const s = getSelection(); s.removeAllRanges(); s.addRange(r); } if (st) st.textContent = 'Selecione e copie o código.'; });
+  } else if (a === 'codshare') {
+    const L = (mem.codigos || []).slice().reverse();
+    navigator.share({ title: 'Meus códigos', text: mem.nome + ' nº ' + codNum(mem.num) + '\n' + L.map(codDe).join('\n') }).catch(() => {});
+  } else if (a === 'codgera') {
+    const n = document.getElementById('codnome'), u = document.getElementById('codnum');
+    mem.nome = n.value.trim().slice(0, 40); mem.num = u.value.trim().slice(0, 3); salvar();
+    if (!codPronto()) { if (st) st.textContent = 'Falta o nome ou o número da chamada.'; return; }
+    const r = Q && Q.codReg, cx = document.getElementById('codcx');
+    if (r && cx) { codEnvia(r); cx.outerHTML = codCaixa(r); }
+  } else if (a === 'codconfere') {
+    document.getElementById('codres').innerHTML = codConfere(document.getElementById('codconf').value);
+  }
+});
 
 inicio();
 </script>
