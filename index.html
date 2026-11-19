@@ -383,6 +383,16 @@ details.conf summary small{font-weight:600;color:var(--cinza);white-space:nowrap
 .cod-tab th,.cod-tab td{border:1px solid var(--linha);padding:6px;text-align:left}
 #codconf{width:100%;font-size:16px;box-sizing:border-box}
 
+/* mod_70_videos: links para vídeos do YouTube */
+.vlista { display: grid; gap: 8px; margin: 6px 0 10px; }
+a.vid { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 8px 12px; border: 1px solid var(--linha); border-radius: 12px; background: var(--papel); color: var(--tinta); text-decoration: none; }
+a.vid:hover, a.vid:focus-visible { border-color: var(--laranja); }
+a.vid b { display: block; font-weight: 600; }
+a.vid small { display: block; color: var(--cinza); font-size: .85em; }
+.vid-play { flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--laranja2); color: #fff; font-size: 14px; }
+.vid-ex { margin-top: 10px; }
+.vtit { margin: 18px 0 4px; }
+
 </style>
 </head>
 <body>
@@ -3551,6 +3561,131 @@ app.addEventListener('click', ev => {
     document.getElementById('codres').innerHTML = codConfere(document.getElementById('codconf').value);
   }
 });
+
+// ---------- mod_70_videos: as duas playlists do YouTube e a dica em vídeo de cada questão (v10, 19/11/2026) ----------
+// Vídeos conferidos pelo Gemini (objetivo, mostra a regra, tem exemplo, sem erro). Registro em 2026-4BIM_PLAYLISTS_SARESP_v01.
+// Curtos (até ~5 min): aparecem na aula, nos exemplos e, depois da resposta, no exercício do mesmo assunto (regra `re`).
+// Longos: aparecem na aula e na tela de vídeos.
+const VID_PL = [
+  { t: 'Dicas rápidas', sub: 'Vídeos curtos, quase todos com menos de 5 minutos', url: 'https://www.youtube.com/playlist?list=PLFgnVvvF8BFU' },
+  { t: 'Exemplos práticos', sub: 'Aulas de 5 a 30 minutos com exercícios resolvidos', url: 'https://www.youtube.com/playlist?list=PLKs3eK67woDk' }
+];
+// [id, título, aula, regra para achar a questão (texto), duração]
+const VID_CURTOS = [
+  ['RrjtgevcYjw', 'Regra dos sinais em 4 minutos', 1, '×|÷|multiplic|divid|produto', '4 min'],
+  ['XxHwJw2M8xU', 'Regra de sinais: soma é diferente de multiplicação', 1, 'saldo|temperatura|varia|recebeu|[+−-]\\s*\\(|\\)\\s*[+−]|\\d\\s*−\\s*\\d', '1 min'],
+  ['7xGv408zOXA', 'Números negativos: tirar os parênteses e somar', 1, 'oposto|maior|negativ|\\(\\s*[−-]', '1 min'],
+  ['FzYzE7LgIv8', '9,8 é maior que 9,11? Comparar decimais', 2, 'maior|menor|compar', '1 min'],
+  ['LelBalWdNCc', 'Somar decimais: vírgula embaixo de vírgula', 2, '\\+|total|pacotes|troco|\\d,\\d+\\s*[−-]', '1 min'],
+  ['hfgzrfYys1I', 'Decimal em fração', 2, 'fração|mesmo que|%|copos|garrafa', '1 min'],
+  ['g5JJcUgJ6BA', 'Frações equivalentes', 3, 'equivalent|4 mostra|mesma', '1 min'],
+  ['MkNYUnkPA1I', 'Como simplificar frações', 3, 'simplific|irredut', '1 min'],
+  ['BNlYPfERhyU', 'Comparar frações com denominadores diferentes', 3, 'maior|menor|mais|crescente|perto|entre', '1 min'],
+  ['8CAPWjdIa3I', 'Subtrair frações', 4, '−|restou|sobrou|falta|1 −|fatias', '1 min', [3]],
+  ['novla7XWDd0', 'Dividir frações: multiplicar pelo inverso', 4, '÷|copos|garrafas|divid', '1 min'],
+  ['0HgQrXDYEtk', 'Somar frações: MMC ou borboleta', 4, '\\+|soma|dobrar|receita', '4 min'],
+  ['Kk6Cy_QQeqk', 'Valor numérico com números negativos', 5, 'quanto custa|quando n', '3 min'],
+  ['FeIN4MZnhAc', 'Valor numérico: trocar a letra pelo número', 5, 'quanto vale|vale', '1 min'],
+  ['fyuz9gv5khQ', 'Achar os termos pela lei de formação', 5, 'sequência|termo|regra|palitos|posição|próximo', '3 min'],
+  ['dCBdXo7qcXk', 'Termos semelhantes', 5, 'semelhant|expressão|triplo|táxi|n representa', '1 min', [7]],
+  ['KNNT_z9KFa4', 'Equação do 1º grau, passo a passo', 6, 'resolva|incógnita|solução|primeiro passo|conferir|traduz|número', '1 min'],
+  ['WpeZLtLnp1s', 'Equação com parênteses: o método mais fácil', 7, '\\(|distribut|resultado de', '4 min'],
+  ['cwdN1GuZBRo', 'Nunca mais erre equação: x dos dois lados', 7, 'x .*= .*x|custam|idade|anos|dias', '2 min'],
+  ['2Mxif4HNtz8', 'Direta ou inversamente proporcional?', 8, 'diretamente|proporcionais|app|proporção', '1 min'],
+  ['bMMfHZn8Ii4', 'Regra de três inversa', 8, 'máquinas|km/h|operários|pedreiros|inversa', '2 min'],
+  ['L_u_bOLd5Tc', 'Grandezas diretamente proporcionais', 8, 'razão|custam|kg|receita|dividindo|partes|preço', '5 min'],
+  ['tZloXqNiOE0', 'Desconto: quanto se paga', 9, 'desconto|aumento|economiza|novo preço|preço final', '1 min'],
+  ['FEuCLT-EgPY', 'Calcular a porcentagem de um número', 9, '% de|alunos|turma', '1 min'],
+  ['EG5YROnffy8', '10%, 25% e 50% de cabeça', 9, '10%|25%|50%|5%|15%', '1 min'],
+  ['LWnMUxw-cBA', 'De decimal para porcentagem', 9, 'mesmo que|decimal', '1 min'],
+  ['PHyOjggIC6o', 'Complementares e suplementares com equação', 10, 'complement|suplement', '1 min'],
+  ['nyvdTS6VUCk', 'Ângulo agudo, reto, obtuso e raso', 10, 'chamado|reto|agudo|obtuso|raso|120°', '1 min'],
+  ['MpiS8EGX0_Q', 'Complementares e suplementares: resumão', 10, 'triângulo|quadrilátero|pentágono|externo|terceiro', '5 min'],
+  ['wOUS6YY_fQI', 'Diferença entre área e perímetro', 11, 'perímetro|cerca|contorn', '1 min'],
+  ['poMf9MQJIgg', 'Nunca mais confunda perímetro, área e volume', 11, 'm² equivale', '4 min'],
+  ['sORRqaz6ml8', 'Área do retângulo, com problema de pisos', 11, 'retângul|pisos|sala|quadrado|figura|área', '5 min'],
+  ['yXBpuzL0hxU', 'Diferença entre múltiplos e divisores', 12, 'múltiplo|divisível|divisor|12 = 2', '3 min'],
+  ['CND3LudYm5c', 'Como calcular o MMC', 12, 'MMC|MDC|juntos|ônibus', '1 min'],
+  ['xkGcKL5c-48', 'Nunca mais erre as coordenadas', 12, 'plano|ponto|vértices|\\(\\d+, \\d+\\)', '1 min']
+];
+const VID_LONGOS = [
+  ['6d9-kgWigmo', 'Positivos e negativos: resumão', 1, '7 min'], ['TToR1RqcgrU', 'Expressões numéricas com inteiros', 1, '8 min'],
+  ['19ksgzttJ_4', 'As 6 operações com decimais', 2, '9 min', '×|÷'], ['gSy8Qp4RHf0', 'Comparação de decimais', 2, '13 min'], ['excWklaEb_E', 'Fração em número decimal', 2, '11 min'],
+  ['kR1_vTZHANI', 'Frações equivalentes (pode parar aos 14:30)', 3, '17 min'], ['pFd5MQLGNC0', 'Comparação de frações', 3, '13 min'], ['JLjuuKhseRY', 'Simplificação de frações', 3, '15 min'],
+  ['VrVP5h-bNqg', 'Tudo sobre frações', 4, '7 min'], ['QgvWzZHM31U', 'Frações: adição e subtração', 4, '10 min'], ['WsWRpp35Uhc', 'Frações: multiplicação e divisão', 4, '9 min', '×'],
+  ['YHb-xGxV2Lw', 'Valor numérico', 5, '6 min'], ['8qma3ZWd2kM', 'Resumão de expressões algébricas', 5, '7 min'], ['mE6_YVkTDr0', 'Sequências recursivas e não recursivas', 5, '23 min'],
+  ['TLkqE_CWY2E', 'Equação do 1º grau', 6, '11 min'], ['it8AytNbkGA', 'Equação do 1º grau: resumão', 6, '15 min'], ['j6dy4VrsFvA', 'Equações: resolução de exercícios', 7, '27 min'],
+  ['rXLPR_fjBzM', 'Razão e proporção com exercícios', 8, '16 min'], ['mnle8NcUYkQ', 'Regra de três simples', 8, '13 min'], ['H5It7WL5WMA', 'Regra de três: direta e inversa', 8, '17 min'],
+  ['ZSg7J22y6lQ', 'Porcentagem', 9, '13 min'], ['OjOyNmTt7Mw', 'Como calcular porcentagem', 9, '17 min'], ['Ed8fS4TGee0', 'Exercícios de desconto e acréscimo', 9, '32 min'],
+  ['h7ba8ZzQT_g', 'Ângulos: resumo com exemplos', 10, '7 min'], ['nAvqZSglTmA', 'Ângulos: definição e tipos', 10, '16 min'], ['dhXNH5fDlmg', 'Complementares e suplementares: exercícios', 10, '30 min'],
+  ['UXoBHQBT5OE', 'Área do triângulo', 11, '10 min'], ['9wJcIcqw8Q0', 'Como calcular o perímetro', 11, '9 min'], ['dArATPsuLjM', 'Área e perímetro: problemas', 11, '22 min'],
+  ['0QZVJFOE4cE', 'Múltiplos e divisores: resumão', 12, '11 min'], ['PmlNQeBfp7I', 'MMC: mínimo múltiplo comum', 12, '13 min'],
+  ['Fo9TcI9KDzg', 'Plano cartesiano em 11 minutos', 12, '11 min'], ['EAeTBeEHSD4', 'Plano cartesiano', 12, '25 min']
+];
+const VID_RE = {};
+VID_CURTOS.forEach(v => { VID_RE[v[0]] = new RegExp(v[3], 'i'); });
+
+function vidUrl(id){ return 'https://www.youtube.com/watch?v=' + id; }
+function vidLink(id, tit, dur, rot){
+  return '<a class="vid" href="' + esc0(vidUrl(id)) + '" target="_blank" rel="noopener"><span class="vid-play" aria-hidden="true">▶</span><span><b>' +
+    (rot ? esc0(rot) + ' ' : '') + esc0(tit) + '</b><small>' + esc0(dur) + ' · abre no YouTube</small></span></a>';
+}
+function vidAulaN(q){ const m = /^p(\d+)q/.exec(q && q.id || ''); return m ? +m[1] : 0; }
+function vidDaQuestao(q){  // o vídeo curto do mesmo assunto da questão; sem regra que bata, o 1º curto da aula
+  const n = vidAulaN(q); if (!n || n > 12) return null;
+  const da = VID_CURTOS.filter(v => v[2] === n);
+  if (!da.length) return null;
+  const txt = q.texto + ' ' + q.alts.join(' ');
+  const c1 = da.filter(v => VID_RE[v[0]].test(txt))[0];  // 1º: curto da mesma aula
+  if (c1) return c1;
+  const c2 = VID_CURTOS.filter(v => v[5] && v[5].indexOf(n) >= 0 && VID_RE[v[0]].test(txt))[0];  // 2º: curto de outra aula que serve
+  if (c2) return c2;
+  const l = VID_LONGOS.filter(v => v[2] === n && v[4] && new RegExp(v[4]).test(txt))[0];  // 3º: aula longa do assunto
+  if (l) return [l[0], l[1], n, '', l[3]];
+  return da[0];
+}
+function vidCaixaAula(n){
+  const c = VID_CURTOS.filter(v => v[2] === n), l = VID_LONGOS.filter(v => v[2] === n);
+  if (!c.length && !l.length) return '';
+  return '<div class="caixa vids" id="vids"><h3>Vídeos desta aula</h3>' +
+    (c.length ? '<p class="sub">Dicas rápidas: a regra e um exemplo em poucos minutos.</p><div class="vlista">' + c.map(v => vidLink(v[0], v[1], v[4])).join('') + '</div>' : '') +
+    (l.length ? '<p class="sub">Para estudar com calma: aulas com exercícios resolvidos.</p><div class="vlista">' + l.map(v => vidLink(v[0], v[1], v[3])).join('') + '</div>' : '') + '</div>';
+}
+
+TELAS.videos = function(){
+  let h = topo() + '<h2>Vídeos de revisão</h2><p class="sub">Duas playlists do YouTube, separadas por conteúdo. Todos os vídeos foram conferidos: explicam a regra e resolvem exemplo.</p><div class="grade2">' +
+    VID_PL.map(p => '<div class="caixa"><h3>' + esc0(p.t) + '</h3><p class="sub">' + esc0(p.sub) + '</p><a class="bt" href="' + esc0(p.url) + '" target="_blank" rel="noopener">Abrir a playlist</a></div>').join('') + '</div>';
+  D.partes.forEach(p => { if (p.n <= 12) h += '<h3 class="vtit">' + p.n + '. ' + esc(p.titulo) + '</h3>' + vidCaixaAula(p.n).replace('<h3>Vídeos desta aula</h3>', ''); });
+  mostrar(h + rodapeVoltar());
+};
+
+// aula: caixa de vídeos antes de "4. Mais para estudar" e o vídeo do assunto em cada exemplo resolvido
+const vidAulaOrig = aula;
+aula = function(i){
+  vidAulaOrig(i);
+  const p = D.partes[i]; if (!p || p.n > 12) return;
+  const s4 = document.getElementById('sec4');
+  if (s4) s4.insertAdjacentHTML('beforebegin', vidCaixaAula(p.n));
+  p.q.filter(q => q.passos).forEach((q, k) => {
+    const v = vidDaQuestao(q), c = document.getElementById('ex' + k);
+    if (v && c) c.insertAdjacentHTML('beforeend', '<div class="vid-ex">' + vidLink(v[0], v[1], v[4], 'Dica em vídeo:') + '</div>');
+  });
+};
+// exercício: depois de responder, o vídeo curto do mesmo assunto
+const vidAlemOrig = degrauAlem;
+degrauAlem = function(q){
+  const v = vidDaQuestao(q);
+  return vidAlemOrig(q) + (v ? '<div class="vid-ex">' + vidLink(v[0], v[1], v[4], 'Dica em vídeo:') + '</div>' : '');
+};
+// aba Treinar: cartão dos vídeos antes do Kahoot
+const vidInicioOrig = inicio;
+inicio = function(){
+  vidInicioOrig();
+  if (aba !== 'treinar') return;
+  const hk = Array.prototype.filter.call(app.querySelectorAll('h2'), e => e.textContent === 'Kahoot')[0];
+  const bloco = '<h2>Vídeos</h2><div class="grade">' + cartao('videos', null, '▶', 'Vídeos de revisão', '2 playlists do YouTube e os vídeos de cada aula') + '</div>';
+  if (hk) hk.insertAdjacentHTML('beforebegin', bloco); else app.insertAdjacentHTML('beforeend', bloco);
+};
 
 inicio();
 </script>
