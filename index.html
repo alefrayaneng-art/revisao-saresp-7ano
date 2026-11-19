@@ -393,6 +393,14 @@ a.vid small { display: block; color: var(--cinza); font-size: .85em; }
 .vid-ex { margin-top: 10px; }
 .vtit { margin: 18px 0 4px; }
 
+/* mod_80_diario: 7 abas no rodapé e botões de baixar o diário */
+#abas{grid-template-columns:repeat(7,1fr)}
+#abas button{font-size:.68rem;padding:6px 0;min-width:0}
+#abas button span{font-size:1.15rem}
+a.dia-bt{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;margin-top:6px}
+a.dia-bt small{font-weight:400;font-size:.8em;opacity:.85}
+.dia-lista{display:grid;gap:8px;grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
+
 </style>
 </head>
 <body>
@@ -3687,14 +3695,44 @@ degrauAlem = function(q){
   const v = vidDaQuestao(q);
   return vidAlemOrig(q) + (v ? '<div class="vid-ex">' + vidLink(v[0], v[1], v[4], 'Dica em vídeo:') + '</div>' : '');
 };
-// aba Treinar: cartão dos vídeos antes do Kahoot
-const vidInicioOrig = inicio;
+// a tela de vídeos agora é uma aba do rodapé (mod_80_diario)
+
+// ---------- mod_80_diario: abas Kahoot e Vídeos e o diário de bordo em PDF para baixar (v13, 19/11/2026) ----------
+// PDFs copiados para diario/ pelo gerar_diario_bordo.py: aula01..aula13.pdf, simulado.pdf e diario-completo.pdf.
+
+// abas novas no rodapé, logo depois de Treinar
+(function(){
+  const i = ABAS.findIndex(a => a[0] === 'treinar') + 1;
+  ABAS.splice(i, 0, ['kahoot', 'Kahoot', '🟣'], ['videos', 'Vídeos', '▶️']);
+})();
+function diaSemTopo(){  // a tela de aba não precisa do "← Voltar / Início"
+  const t = app.querySelector('[data-acao="voltar"]');
+  if (t && t.parentNode && t.parentNode.classList.contains('linha')) t.parentNode.remove();
+}
+ABA_EXTRA.kahoot = function(){ TELAS.kahoot(); diaSemTopo(); };
+ABA_EXTRA.videos = function(){ TELAS.videos(); diaSemTopo(); };
+
+// botão de baixar na tela de cada aula e caixa na aba Mais
+function diaLink(arq, txt, sub){
+  return '<a class="bt dia-bt" href="diario/' + arq + '" download target="_blank" rel="noopener">⬇ ' + esc0(txt) + (sub ? '<small>' + esc0(sub) + '</small>' : '') + '</a>';
+}
+const diaAulaOrig = aula;
+aula = function(i){
+  diaAulaOrig(i);
+  const p = D.partes[i]; if (!p) return;
+  const alvo = document.getElementById('sec2');
+  const caixa = '<div class="caixa dia"><h3>Folha para imprimir</h3><p class="sub">A folha do diário de bordo desta aula (frente e verso): ideias-chave, exemplos para copiar do quadro e exercícios com espaço para a conta.</p>' +
+    diaLink('aula' + ('0' + p.n).slice(-2) + '.pdf', 'Baixar a folha da Aula ' + p.n, 'PDF, 1 folha A4') + '</div>';
+  if (alvo) alvo.insertAdjacentHTML('beforebegin', caixa);
+};
+const diaInicioOrig = inicio;
 inicio = function(){
-  vidInicioOrig();
-  if (aba !== 'treinar') return;
-  const hk = Array.prototype.filter.call(app.querySelectorAll('h2'), e => e.textContent === 'Kahoot')[0];
-  const bloco = '<h2>Vídeos</h2><div class="grade">' + cartao('videos', null, '▶', 'Vídeos de revisão', '2 playlists do YouTube e os vídeos de cada aula') + '</div>';
-  if (hk) hk.insertAdjacentHTML('beforebegin', bloco); else app.insertAdjacentHTML('beforeend', bloco);
+  diaInicioOrig();
+  if (aba !== 'mais') return;
+  const h = '<h2>Diário de bordo para imprimir</h2><div class="caixa dia"><p class="sub">As folhas que fazemos em sala. Perdeu a sua ou faltou? Baixe, imprima ou copie no caderno.</p>' +
+    '<div class="dia-lista">' + diaLink('diario-completo.pdf', 'Todas as folhas', '13 aulas e o simulado') + diaLink('simulado.pdf', 'Simulado de sala', '12 questões') +
+    D.partes.map(p => diaLink('aula' + ('0' + p.n).slice(-2) + '.pdf', 'Aula ' + p.n + ': ' + p.titulo)).join('') + '</div></div>';
+  app.insertAdjacentHTML('beforeend', h);
 };
 
 inicio();
