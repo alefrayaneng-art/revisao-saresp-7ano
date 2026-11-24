@@ -3352,7 +3352,10 @@ app.addEventListener('keydown', ev => {
 // 2) Registro voluntário: só se o aluno marcar a caixa na tela "Enviar ao professor" e tiver escrito o nome.
 // Sem REG_URL o módulo não envia nada.
 const REG_URL = 'https://script.google.com/macros/s/AKfycbwjkHy5Ifh-vE6HrhdXMRbT5vvMx7jhad6LQTf_dZxZQV_yJN_TJj5ann6x3f48-Jk7PA/exec';
-const REG_VER = 'v07';
+const REG_VER = 'v14';
+// v14 (24/11/2026): com autorização da escola (palavra do professor), o aviso vem LIGADO por padrão.
+// Quem nunca mexeu na caixa (regAuto indefinido) passa a ter regAuto = true; quem desmarcou de propósito (false) continua desligado.
+if (mem.regAuto === undefined) { mem.regAuto = true; salvar(); }
 
 function regData(){ const d = new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
 function regEnvia(obj){
@@ -3403,8 +3406,8 @@ TELAS.enviar = function(x, y){
   div.className = 'caixa reg-caixa';
   div.innerHTML = '<label class="reg-op"><input type="checkbox" id="regauto"' + (mem.regAuto ? ' checked' : '') + '> ' +
     '<span>Avisar o professor quando eu estudar</span></label>' +
-    '<p class="sub">Se você marcar, o site manda ao professor o seu nome, número, turma e os seus pontos, para ele ver quem está treinando. ' +
-    'É opcional. Sem marcar, o professor só vê quantos aparelhos abriram o site, sem nomes.</p>' +
+    '<p class="sub">Marcado, o site manda ao professor o seu nome, número, turma, pontos e os códigos das atividades, para ele ver quem está treinando. ' +
+    'Já vem marcado. Se não quiser, desmarque: aí o professor só vê quantos aparelhos abriram o site, sem nomes.</p>' +
     '<p class="sub" id="regst" role="status" aria-live="polite"></p>';
   alvo.parentNode.insertBefore(div, alvo.nextSibling);
 };
@@ -3414,7 +3417,7 @@ app.addEventListener('change', ev => {
   mem.regAuto = ev.target.checked; salvar();
   const st = document.getElementById('regst');
   if (mem.regAuto && !mem.nome) { if (st) st.textContent = 'Escreva o seu nome acima para o aviso funcionar.'; return; }
-  if (mem.regAuto) { regAluno(true); if (st) st.textContent = navigator.onLine ? '✔ Pronto. O professor vai ver que você estudou.' : 'Sem internet agora: o aviso vai quando a internet voltar.'; }
+  if (mem.regAuto) { regAluno(true); if (typeof codResgata === 'function') codResgata(); if (st) st.textContent = navigator.onLine ? '✔ Pronto. O professor vai ver que você estudou.' : 'Sem internet agora: o aviso vai quando a internet voltar.'; }
   else if (st) st.textContent = 'Aviso desligado. Seu nome não é mais enviado.';
 });
 
@@ -3477,8 +3480,27 @@ gravaMelhor = function(){
 function codEnvia(r){
   if (typeof regEnvia !== 'function' || !mem.regAuto || !codPronto()) return;
   if (regEnvia({ t: 'codigo', data: typeof regData === 'function' ? regData() : '', nome: mem.nome, num: mem.num || '', turma: mem.turma || '',
-    codigo: codDe(r), atividade: codNomeTipo(r.t), acertos: r.a, total: r.n, ver: 'v08' })) { r.env = 1; salvar(); }
+    codigo: codDe(r), atividade: codNomeTipo(r.t), acertos: r.a, total: r.n, ver: 'v14' })) { r.env = 1; salvar(); }
 }
+// v14 (24/11/2026): resgate. Os códigos feitos antes, guardados só no aparelho e ainda não enviados (sem r.env),
+// vão para o professor um a um, com intervalo, no máximo COD_LOTE por abertura do site (o resto vai na próxima).
+const COD_LOTE = 60;
+let codResgateRodando = false;
+function codResgata(){
+  if (codResgateRodando || !mem.regAuto || !codPronto() || !navigator.onLine || typeof regEnvia !== 'function') return;
+  const fila = (mem.codigos || []).filter(r => !r.env).slice(0, COD_LOTE);
+  if (!fila.length) return;
+  codResgateRodando = true;
+  let i = 0;
+  const passo = () => {
+    if (i >= fila.length || !navigator.onLine || !mem.regAuto) { codResgateRodando = false; return; }
+    codEnvia(fila[i++]);
+    setTimeout(passo, 700);
+  };
+  passo();
+}
+setTimeout(codResgata, 4000);
+window.addEventListener('online', () => setTimeout(codResgata, 2000));
 
 // ---- caixa do código na tela de resultado ----
 function codCaixa(r){
